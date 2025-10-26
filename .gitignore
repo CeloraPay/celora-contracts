@@ -13,3 +13,10 @@ states/
 # Optional
 .env
 .env.local
+node_modules
+cache
+scripts
+
+hardhat.config.js
+package.json
+package-lock.json
