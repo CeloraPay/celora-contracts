@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import "./PaymentEscrow.sol";
+import {PaymentEscrow} from "./PaymentEscrow.sol";
 
 error NotOwner();
 error NotAdminGateway();
@@ -20,19 +20,19 @@ contract PaymentGateway is ReentrancyGuard {
     address public owner;
     mapping(address => bool) public admins;
 
-    // allowed payment tokens (token address => enabled). address(0) reserved for native CELO
     mapping(address => bool) public enabledTokens;
     address[] private tokenList;
 
-    // receivers must be registered before they can receive payments
     mapping(address => bool) public registeredReceiver;
     address[] public receiversList;
 
-    // payments created
+    mapping(uint256 => uint256) public planCapacity;
+    mapping(address => uint256) public receiverPlan;
+    mapping(address => uint256) public activePayments;
+
     uint256 public nextInvoiceId;
     mapping(uint256 => address) public invoiceToEscrow;
 
-    // pull pattern for native rewards
     mapping(address => uint256) public pendingRewards;
 
     event OwnerChanged(address indexed oldOwner, address indexed newOwner);
@@ -41,6 +41,9 @@ contract PaymentGateway is ReentrancyGuard {
     event TokenEnabled(address indexed token);
     event TokenDisabled(address indexed token);
     event ReceiverRegistered(address indexed receiver);
+    event PlanDefined(uint256 indexed planId, uint256 capacity);
+    event ReceiverPlanAssigned(address indexed receiver, uint256 planId);
+    event ActivePaymentCountChanged(address indexed receiver, uint256 newCount);
     event PaymentCreated(
         uint256 indexed invoiceId,
         address escrowAddress,
@@ -62,30 +65,38 @@ contract PaymentGateway is ReentrancyGuard {
     );
 
     modifier onlyOwner() {
-        if (msg.sender != owner) revert NotOwner();
+        _onlyOwner();
         _;
     }
+
+    function _onlyOwner() internal view {
+        if (msg.sender != owner) revert NotOwner();
+    }
+
     modifier onlyAdmin() {
-        if (!admins[msg.sender]) revert NotAdminGateway();
+        _onlyAdmin();
         _;
+    }
+
+    function _onlyAdmin() internal view {
+        if (!admins[msg.sender]) revert NotAdminGateway();
     }
 
     constructor() {
         owner = msg.sender;
         admins[msg.sender] = true;
-        enabledTokens[address(0)] = true; // native CELO enabled by default
+        enabledTokens[address(0)] = true;
         nextInvoiceId = 1;
+        planCapacity[1] = 10;
         emit AdminAdded(msg.sender);
     }
 
-    // Owner management
     function transferOwnership(address newOwner) external onlyOwner {
         address old = owner;
         owner = newOwner;
         emit OwnerChanged(old, newOwner);
     }
 
-    // Admin management (owner can add/remove)
     function addAdmin(address _admin) external onlyOwner {
         if (admins[_admin]) revert AlreadyAdmin(_admin);
         admins[_admin] = true;
@@ -97,7 +108,6 @@ contract PaymentGateway is ReentrancyGuard {
         emit AdminRemoved(_admin);
     }
 
-    // Enable / disable tokens
     function enableToken(address token) external onlyOwner {
         if (!enabledTokens[token]) {
             enabledTokens[token] = true;
@@ -115,16 +125,30 @@ contract PaymentGateway is ReentrancyGuard {
         return tokenList;
     }
 
-    // register receiver
     function registerReceiver(address receiver) external onlyAdmin {
         if (!registeredReceiver[receiver]) {
             registeredReceiver[receiver] = true;
             receiversList.push(receiver);
             emit ReceiverRegistered(receiver);
+
+            receiverPlan[receiver] = 1;
+            emit ReceiverPlanAssigned(receiver, 1);
         }
     }
 
-    // create payment — only admin
+    function definePlan(uint256 planId, uint256 capacity) external onlyOwner {
+        require(capacity > 0, "capacity must be >0");
+        planCapacity[planId] = capacity;
+        emit PlanDefined(planId, capacity);
+    }
+
+    function assignPlan(address receiver, uint256 planId) external onlyAdmin {
+        require(registeredReceiver[receiver], "receiver not registered");
+        require(planCapacity[planId] > 0, "plan not defined");
+        receiverPlan[receiver] = planId;
+        emit ReceiverPlanAssigned(receiver, planId);
+    }
+
     function createPayment(
         address payer,
         address receiver,
@@ -137,20 +161,28 @@ contract PaymentGateway is ReentrancyGuard {
         onlyAdmin
         returns (address escrowAddr, uint256 invoiceId)
     {
-        // checks
         if (!enabledTokens[token]) revert TokenNotEnabled(token);
         if (!registeredReceiver[receiver]) revert NotInitializedReceiver();
 
-        // effects
+        uint256 planId = receiverPlan[receiver];
+        require(planId != 0, "receiver has no plan assigned");
+
+        uint256 capacity = planCapacity[planId];
+        require(
+            activePayments[receiver] < capacity,
+            "receiver plan limit reached"
+        );
+
         invoiceId = nextInvoiceId++;
-        // deploy escrow
+
+        activePayments[receiver] += 1;
+        emit ActivePaymentCountChanged(receiver, activePayments[receiver]);
+
         PaymentEscrow escrow = new PaymentEscrow();
         escrowAddr = address(escrow);
 
-        // record mapping BEFORE external call (prevents some reentrancy classes)
         invoiceToEscrow[invoiceId] = escrowAddr;
 
-        // interactions
         escrow.initialize(
             address(this),
             payer,
@@ -170,9 +202,10 @@ contract PaymentGateway is ReentrancyGuard {
             amount,
             block.timestamp + durationSeconds
         );
+
+        return (escrowAddr, invoiceId);
     }
 
-    // finalize: only admin calls gateway.finalizePayment -> gateway calls escrow.finalize
     function finalizePayment(
         uint256 invoiceId,
         bool forceExpired
@@ -181,16 +214,22 @@ contract PaymentGateway is ReentrancyGuard {
         require(escrowAddr != address(0), "invoice not found");
 
         PaymentEscrow escrow = PaymentEscrow(payable(escrowAddr));
+
+        address rcv = escrow.receiver();
+
+        if (rcv != address(0) && activePayments[rcv] > 0) {
+            activePayments[rcv] -= 1;
+            emit ActivePaymentCountChanged(rcv, activePayments[rcv]);
+        }
+
         bool success = escrow.finalize(forceExpired);
         emit PaymentFinalized(invoiceId, escrowAddr, success);
+
         return success;
     }
 
-    // Allow gateway to receive native CELO fees from escrows
     receive() external payable {}
 
-    // Distribute percent% of gateway's native CELO balance equally among all registered receivers,
-    // but use Pull pattern: add to pendingRewards for each receiver, they claim later.
     function distributeNativeReward(
         uint256 percent
     ) external onlyAdmin nonReentrant {
@@ -210,7 +249,6 @@ contract PaymentGateway is ReentrancyGuard {
         emit RewardDistributed(percent, total, per);
     }
 
-    // claim pending native reward (pull)
     function claimReward() external nonReentrant {
         uint256 amount = pendingRewards[msg.sender];
         require(amount > 0, "no reward");
@@ -220,7 +258,6 @@ contract PaymentGateway is ReentrancyGuard {
         require(ok, "native transfer failed");
     }
 
-    // Helper: withdraw ERC20 fees collected in gateway to owner
     function withdrawToken(
         address token,
         uint256 amount,
@@ -230,7 +267,6 @@ contract PaymentGateway is ReentrancyGuard {
         IERC20(token).safeTransfer(to, amount);
     }
 
-    // Helper: withdraw native
     function withdrawNative(
         uint256 amount,
         address payable to
@@ -239,7 +275,6 @@ contract PaymentGateway is ReentrancyGuard {
         require(ok, "withdraw native failed");
     }
 
-    // view helpers
     function getReceiversCount() external view returns (uint256) {
         return receiversList.length;
     }
