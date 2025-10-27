@@ -154,7 +154,8 @@ contract PaymentGateway is ReentrancyGuard {
         address receiver,
         address token,
         uint256 amount,
-        uint256 durationSeconds
+        uint256 durationSeconds,
+        bool isFiat
     )
         external
         nonReentrant
@@ -190,7 +191,8 @@ contract PaymentGateway is ReentrancyGuard {
             token,
             amount,
             invoiceId,
-            durationSeconds
+            durationSeconds,
+            isFiat
         );
 
         emit PaymentCreated(

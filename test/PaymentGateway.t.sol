@@ -62,7 +62,8 @@ contract PaymentGatewayTest is Test {
             receiver,
             address(token),
             100 ether,
-            15 minutes
+            15 minutes,
+            false
         );
         escrowAddr = payable(escrowAddrTemp);
         paymentId = invoiceId;
@@ -83,6 +84,36 @@ contract PaymentGatewayTest is Test {
         assertEq(token.balanceOf(address(gateway)), 5 ether);
     }
 
+    function test_CreatePaymentWithFiatAndFinalize_Success() public {
+        // Create payment
+        vm.startPrank(admin);
+        (address escrowAddrTemp, uint256 invoiceId) = gateway.createPayment(
+            payer,
+            receiver,
+            address(token),
+            100 ether,
+            15 minutes,
+            true
+        );
+        escrowAddr = payable(escrowAddrTemp);
+        paymentId = invoiceId;
+        vm.stopPrank();
+
+        // Deposit tokens via escrow
+        vm.startPrank(payer);
+        token.approve(escrowAddr, 100 ether);
+        PaymentEscrow(escrowAddr).depositToken(100 ether);
+        vm.stopPrank();
+
+        // Finalize payment
+        vm.prank(admin);
+        bool success = gateway.finalizePayment(paymentId, false);
+
+        assertTrue(success);
+        assertEq(token.balanceOf(receiver), 0 ether); // 5% fee
+        assertEq(token.balanceOf(address(gateway)), 100 ether);
+    }
+
     function test_ForceFinalize_ExpiredPayment() public {
         // Create payment
         vm.startPrank(admin);
@@ -91,7 +122,8 @@ contract PaymentGatewayTest is Test {
             receiver,
             address(token),
             50 ether,
-            15 minutes
+            15 minutes,
+            false
         );
         escrowAddr = payable(escrowAddrTemp);
         paymentId = invoiceId;
@@ -124,7 +156,8 @@ contract PaymentGatewayTest is Test {
             receiver,
             address(token),
             10 ether,
-            15 minutes
+            15 minutes,
+            false
         );
         escrowAddr = payable(escrowAddrTemp);
         paymentId = invoiceId;

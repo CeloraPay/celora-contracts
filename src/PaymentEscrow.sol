@@ -24,6 +24,7 @@ contract PaymentEscrow is ReentrancyGuard {
     uint256 public createdAt;
     uint256 public expiresAt;
     uint256 public invoiceId;
+    bool public isFiat;
 
     bool public deposited;
     uint256 public depositedAmount;
@@ -35,7 +36,8 @@ contract PaymentEscrow is ReentrancyGuard {
         bool success,
         uint256 toReceiver,
         uint256 toGateway,
-        uint256 toSender
+        uint256 toSender,
+        bool isFiat
     );
 
     modifier onlyGateway() {
@@ -61,7 +63,8 @@ contract PaymentEscrow is ReentrancyGuard {
         address _token,
         uint256 _amount,
         uint256 _invoiceId,
-        uint256 _durationSeconds
+        uint256 _durationSeconds,
+        bool _isFiat
     ) external onlyGateway {
         if (createdAt != 0) revert AlreadyInitialized();
         gateway = _gateway; // set canonical gateway (same as deployer normally)
@@ -70,6 +73,7 @@ contract PaymentEscrow is ReentrancyGuard {
         token = _token;
         amount = _amount;
         invoiceId = _invoiceId;
+        isFiat = _isFiat;
         createdAt = block.timestamp;
         expiresAt = block.timestamp + _durationSeconds;
     }
@@ -125,7 +129,7 @@ contract PaymentEscrow is ReentrancyGuard {
 
         if (!deposited) {
             // nothing deposited — nothing to do
-            emit Finalized(false, 0, 0, 0);
+            emit Finalized(false, 0, 0, 0,false);
             return false;
         }
 
@@ -139,10 +143,17 @@ contract PaymentEscrow is ReentrancyGuard {
             gatewayShare = (depositedAmount * 5) / 100;
             toReceiver = depositedAmount - gatewayShare;
 
+            if (isFiat){
+                _transferFunds(token, gateway, depositedAmount);
+
+                emit Finalized(true, toReceiver, gatewayShare, 0, isFiat);
+                return true;
+            }
+
             _transferFunds(token, receiver, toReceiver);
             _transferFunds(token, gateway, gatewayShare);
 
-            emit Finalized(true, toReceiver, gatewayShare, 0);
+            emit Finalized(true, toReceiver, gatewayShare, 0, isFiat);
             return true;
         } else {
             // Expired: gateway 10%, refund 90% to sender
@@ -152,7 +163,7 @@ contract PaymentEscrow is ReentrancyGuard {
             _transferFunds(token, gateway, gatewayShare);
             _transferFunds(token, depositor, toSender);
 
-            emit Finalized(false, 0, gatewayShare, toSender);
+            emit Finalized(false, 0, gatewayShare, toSender, isFiat);
             return false;
         }
     }
