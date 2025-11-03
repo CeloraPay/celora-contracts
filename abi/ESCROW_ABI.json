@@ -121,6 +121,16 @@
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "nonpayable"
@@ -191,7 +201,7 @@
         "internalType": "uint256"
       },
       {
-        "name": "_isFiat",
+        "name": "_receiveFiat",
         "type": "bool",
         "internalType": "bool"
       }
@@ -214,7 +224,7 @@
   },
   {
     "type": "function",
-    "name": "isFiat",
+    "name": "isPay",
     "inputs": [],
     "outputs": [
       {
@@ -234,6 +244,19 @@
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "receiveFiat",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"

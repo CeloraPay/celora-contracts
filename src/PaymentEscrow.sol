@@ -24,7 +24,7 @@ contract PaymentEscrow is ReentrancyGuard {
     uint256 public createdAt;
     uint256 public expiresAt;
     uint256 public invoiceId;
-    bool public isFiat;
+    bool public receiveFiat;
 
     bool public deposited;
     uint256 public depositedAmount;
@@ -64,7 +64,7 @@ contract PaymentEscrow is ReentrancyGuard {
         uint256 _amount,
         uint256 _invoiceId,
         uint256 _durationSeconds,
-        bool _isFiat
+        bool _receiveFiat
     ) external onlyGateway {
         if (createdAt != 0) revert AlreadyInitialized();
         gateway = _gateway; // set canonical gateway (same as deployer normally)
@@ -73,7 +73,7 @@ contract PaymentEscrow is ReentrancyGuard {
         token = _token;
         amount = _amount;
         invoiceId = _invoiceId;
-        isFiat = _isFiat;
+        receiveFiat = _receiveFiat;
         createdAt = block.timestamp;
         expiresAt = block.timestamp + _durationSeconds;
     }
@@ -115,22 +115,42 @@ contract PaymentEscrow is ReentrancyGuard {
         if (payer != address(0)) {
             require(msg.sender == payer, "not authorized payer");
         }
+
         deposited = true;
         depositedAmount = msg.value;
         depositor = msg.sender;
+
         emit Deposited(msg.sender, msg.value);
+    }
+
+    function isPay() external onlyGateway view returns (bool) {
+        uint256 alreadyBalance;
+
+        if (token == address(0)) {
+            alreadyBalance = address(this).balance;
+        } else {
+            alreadyBalance = IERC20(token).balanceOf(address(this));
+        }
+
+        return alreadyBalance >= amount;
     }
 
     // finalize can only be called by gateway (which enforces admin in its own contract)
     // returns true if success (within expiry), false if expired/refunded
-    function finalize(bool _forceExpired) external onlyGateway returns (bool) {
+    function finalize(bool _forceExpired) external onlyGateway returns (bool, uint256, uint256) {
         if (finalized) revert FinalizedAlready();
-        finalized = true;
 
-        if (!deposited) {
+        uint256 alreadyBalance;
+        if (token == address(0)) {
+            alreadyBalance = address(this).balance;
+        } else {
+            alreadyBalance = IERC20(token).balanceOf(address(this));
+        }
+
+        if (!deposited && alreadyBalance < amount) {
             // nothing deposited — nothing to do
-            emit Finalized(false, 0, 0, 0,false);
-            return false;
+            emit Finalized(false, 0, 0, 0, false);
+            return (false, 0, 0);
         }
 
         bool expired = block.timestamp > expiresAt || _forceExpired;
@@ -138,33 +158,35 @@ contract PaymentEscrow is ReentrancyGuard {
         uint256 toReceiver;
         uint256 toSender;
 
+        finalized = true;
+
         if (!expired) {
-            // Success within time: gateway 5%, receiver 95%
-            gatewayShare = (depositedAmount * 5) / 100;
-            toReceiver = depositedAmount - gatewayShare;
+            // Success within time: gateway 2%, receiver 98%
+            gatewayShare = (alreadyBalance * 2) / 100;
+            toReceiver = alreadyBalance - gatewayShare;
 
-            if (isFiat){
-                _transferFunds(token, gateway, depositedAmount);
+            if (receiveFiat){
+                _transferFunds(token, gateway, alreadyBalance);
 
-                emit Finalized(true, toReceiver, gatewayShare, 0, isFiat);
-                return true;
+                emit Finalized(true, toReceiver, gatewayShare, 0, receiveFiat);
+                return (true, alreadyBalance, toReceiver);
             }
 
             _transferFunds(token, receiver, toReceiver);
             _transferFunds(token, gateway, gatewayShare);
 
-            emit Finalized(true, toReceiver, gatewayShare, 0, isFiat);
-            return true;
+            emit Finalized(true, toReceiver, gatewayShare, 0, receiveFiat);
+            return (true, alreadyBalance, toReceiver);
         } else {
             // Expired: gateway 10%, refund 90% to sender
-            gatewayShare = (depositedAmount * 10) / 100;
-            toSender = depositedAmount - gatewayShare;
+            gatewayShare = (alreadyBalance * 10) / 100;
+            toSender = alreadyBalance - gatewayShare;
 
             _transferFunds(token, gateway, gatewayShare);
             _transferFunds(token, depositor, toSender);
 
-            emit Finalized(false, 0, gatewayShare, toSender, isFiat);
-            return false;
+            emit Finalized(false, 0, gatewayShare, toSender, receiveFiat);
+            return (false, alreadyBalance, 0);
         }
     }
 

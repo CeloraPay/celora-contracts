@@ -10,25 +10,6 @@
   },
   {
     "type": "function",
-    "name": "activePayments",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "addAdmin",
     "inputs": [
       {
@@ -114,14 +95,14 @@
         "internalType": "uint256"
       },
       {
-        "name": "isFiat",
+        "name": "receiveFiat",
         "type": "bool",
         "internalType": "bool"
       }
     ],
     "outputs": [
       {
-        "name": "escrowAddr",
+        "name": "paymentAddr",
         "type": "address",
         "internalType": "address"
       },
@@ -235,6 +216,146 @@
   },
   {
     "type": "function",
+    "name": "getPayment",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IPayment.Payment",
+        "components": [
+          {
+            "name": "paymentAddr",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "payer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "receiver",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "expiresAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "invoiceId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "receiveFiat",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "depositedAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "finalized",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getReadyToFinalizeInvoices",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getReceiver",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IReceiver.Receiver",
+        "components": [
+          {
+            "name": "addr",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "planId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "invoiceIds",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          },
+          {
+            "name": "activePayments",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "receivedAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getReceiversCount",
     "inputs": [],
     "outputs": [
@@ -261,7 +382,7 @@
   },
   {
     "type": "function",
-    "name": "invoiceToEscrow",
+    "name": "invoiceToPayment",
     "inputs": [
       {
         "name": "",
@@ -274,6 +395,25 @@
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isActiveInvoice",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -295,6 +435,25 @@
     "type": "function",
     "name": "owner",
     "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "paymentsList",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
     "outputs": [
       {
         "name": "",
@@ -344,25 +503,6 @@
   },
   {
     "type": "function",
-    "name": "receiverPlan",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "receiversList",
     "inputs": [
       {
@@ -385,32 +525,18 @@
     "name": "registerReceiver",
     "inputs": [
       {
-        "name": "receiver",
+        "name": "_addr",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "_description",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "registeredReceiver",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -548,43 +674,43 @@
     "name": "PaymentCreated",
     "inputs": [
       {
-        "name": "invoiceId",
+        "name": "_invoiceId",
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
       },
       {
-        "name": "escrowAddress",
+        "name": "_paymentAddress",
         "type": "address",
         "indexed": false,
         "internalType": "address"
       },
       {
-        "name": "payer",
+        "name": "_payer",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "receiver",
+        "name": "_receiver",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "token",
+        "name": "_token",
         "type": "address",
         "indexed": false,
         "internalType": "address"
       },
       {
-        "name": "amount",
+        "name": "_amount",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
       },
       {
-        "name": "expiresAt",
+        "name": "_expiresAt",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -597,19 +723,19 @@
     "name": "PaymentFinalized",
     "inputs": [
       {
-        "name": "invoiceId",
+        "name": "_invoiceId",
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
       },
       {
-        "name": "escrowAddress",
+        "name": "_paymentAddress",
         "type": "address",
         "indexed": false,
         "internalType": "address"
       },
       {
-        "name": "success",
+        "name": "_success",
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
@@ -641,13 +767,13 @@
     "name": "ReceiverPlanAssigned",
     "inputs": [
       {
-        "name": "receiver",
+        "name": "_addr",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "planId",
+        "name": "_planId",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -660,10 +786,16 @@
     "name": "ReceiverRegistered",
     "inputs": [
       {
-        "name": "receiver",
+        "name": "_addr",
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "_planId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -737,6 +869,17 @@
   },
   {
     "type": "error",
+    "name": "InvalidPlan",
+    "inputs": [
+      {
+        "name": "_planId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "NotAdminGateway",
     "inputs": []
   },
@@ -749,6 +892,39 @@
     "type": "error",
     "name": "NotOwner",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PaymentNotFound",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReceiverAlreadyRegistered",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReceiverNotFound",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   },
   {
     "type": "error",

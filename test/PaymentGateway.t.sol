@@ -4,8 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {PaymentGateway} from "../src/PaymentGateway.sol";
 import {PaymentEscrow} from "../src/PaymentEscrow.sol";
-import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract TestERC20 is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
@@ -16,166 +15,200 @@ contract TestERC20 is ERC20 {
 }
 
 contract PaymentGatewayTest is Test {
-    using SafeERC20 for IERC20;
-
     PaymentGateway public gateway;
     TestERC20 public token;
-
+    
     address public owner = address(0x10);
-    address public admin = address(0x10);
+    address public admin = address(0x10); // owner is admin by constructor
     address public receiver = address(0x12);
     address public payer = address(0x13);
-
-    uint256 public paymentId;
-    address payable public escrowAddr;
+    address public other = address(0x20);
 
     function setUp() public {
         token = new TestERC20("Test Token", "TTK");
 
-        // Deploy Gateway as owner
+        // Deploy Gateway as owner (owner will be admin too)
         vm.startPrank(owner);
         gateway = new PaymentGateway();
-
-        // Enable token
+        // enable ERC20 token
         gateway.enableToken(address(token));
         vm.stopPrank();
 
-        // Register receiver & assign plan
+        // Register receiver (admin)
         vm.startPrank(admin);
-        gateway.registerReceiver(receiver);
+        gateway.registerReceiver(receiver,"Shop");
         vm.stopPrank();
 
-        // Mint tokens to payer
+        // Mint tokens to payer and other
         token.mint(payer, 1000 ether);
+        token.mint(other, 1000 ether);
+    }
 
-        // Approve gateway for ERC20 transfers
-        vm.startPrank(payer);
-        token.approve(address(gateway), type(uint256).max);
+    // helpers
+    function _createPayment(
+        address _payer,
+        address _receiver,
+        address _token,
+        uint256 _amount,
+        uint256 _duration,
+        bool _isFiat
+    ) internal returns (address escrowAddr, uint256 invoiceId) {
+        vm.startPrank(admin);
+        (address esc, uint256 id) = gateway.createPayment(
+            _payer,
+            _receiver,
+            _token,
+            _amount,
+            _duration,
+            _isFiat
+        );
+        vm.stopPrank();
+        return (esc, id);
+    }
+
+    function _depositToken(address _escrow, address _payer, uint256 _amount) internal {
+        vm.startPrank(_payer);
+        token.approve(_escrow, _amount);
+        PaymentEscrow(payable(_escrow)).depositToken(_amount);
         vm.stopPrank();
     }
 
-    function test_CreatePaymentAndFinalize_Success() public {
-        // Create payment
-        vm.startPrank(admin);
-        (address escrowAddrTemp, uint256 invoiceId) = gateway.createPayment(
-            payer,
-            receiver,
-            address(token),
-            100 ether,
-            15 minutes,
-            false
-        );
-        escrowAddr = payable(escrowAddrTemp);
-        paymentId = invoiceId;
+    function _transferToEscrow(address _escrow, address _payer, uint256 _amount) internal {
+        vm.startPrank(_payer);
+        token.approve(_payer, _amount);
+        token.transferFrom(_payer, _escrow, _amount);
         vm.stopPrank();
-
-        // Deposit tokens via escrow
-        vm.startPrank(payer);
-        token.approve(escrowAddr, 100 ether);
-        PaymentEscrow(escrowAddr).depositToken(100 ether);
-        vm.stopPrank();
-
-        // Finalize payment
-        vm.prank(admin);
-        bool success = gateway.finalizePayment(paymentId, false);
-
-        assertTrue(success);
-        assertEq(token.balanceOf(receiver), 95 ether); // 5% fee
-        assertEq(token.balanceOf(address(gateway)), 5 ether);
     }
 
-    function test_CreatePaymentWithFiatAndFinalize_Success() public {
-        // Create payment
-        vm.startPrank(admin);
-        (address escrowAddrTemp, uint256 invoiceId) = gateway.createPayment(
-            payer,
-            receiver,
-            address(token),
-            100 ether,
-            15 minutes,
-            true
-        );
-        escrowAddr = payable(escrowAddrTemp);
-        paymentId = invoiceId;
-        vm.stopPrank();
+    // ------------------ PAYMENT CREATION & FINALIZE ------------------
+    function test_createPayment_and_finalize_with_depositToken() public {
+        (address esc, uint256 id) = _createPayment(payer, receiver, address(token), 100 ether, 15 minutes, false);
 
-        // Deposit tokens via escrow
-        vm.startPrank(payer);
-        token.approve(escrowAddr, 100 ether);
-        PaymentEscrow(escrowAddr).depositToken(100 ether);
-        vm.stopPrank();
+        _depositToken(esc, payer, 100 ether);
 
-        // Finalize payment
         vm.prank(admin);
-        bool success = gateway.finalizePayment(paymentId, false);
+        bool ok = gateway.finalizePayment(id, false);
+        assertTrue(ok);
 
-        assertTrue(success);
-        assertEq(token.balanceOf(receiver), 0 ether); // 5% fee
+        assertEq(token.balanceOf(receiver), 98 ether);
+        assertEq(token.balanceOf(address(gateway)), 2 ether);
+
+        uint256[] memory ready = gateway.getReadyToFinalizeInvoices();
+        for (uint256 i = 0; i < ready.length; i++) {
+            assertTrue(ready[i] != id);
+        }
+    }
+
+    function test_createPayment_and_finalize_with_direct_transfer() public {
+        (address esc, uint256 id) = _createPayment(payer, receiver, address(token), 100 ether, 15 minutes, false);
+
+        _transferToEscrow(esc, payer, 100 ether);
+
+        vm.prank(admin);
+        bool ok = gateway.finalizePayment(id, false);
+        assertTrue(ok);
+
+        assertEq(token.balanceOf(receiver), 98 ether);
+        assertEq(token.balanceOf(address(gateway)), 2 ether);
+
+        vm.prank(admin);
+        vm.expectRevert();
+        gateway.finalizePayment(id, false);
+    }
+
+    function test_fiatFlow_gateway_receives_all() public {
+        (address esc, uint256 id) = _createPayment(payer, receiver, address(token), 100 ether, 15 minutes, true);
+
+        _depositToken(esc, payer, 100 ether);
+
+        vm.prank(admin);
+        bool ok = gateway.finalizePayment(id, false);
+        assertTrue(ok);
+
+        assertEq(token.balanceOf(receiver), 0);
         assertEq(token.balanceOf(address(gateway)), 100 ether);
     }
 
-    function test_ForceFinalize_ExpiredPayment() public {
-        // Create payment
-        vm.startPrank(admin);
-        (address escrowAddrTemp, uint256 invoiceId) = gateway.createPayment(
-            payer,
-            receiver,
-            address(token),
-            50 ether,
-            15 minutes,
-            false
-        );
-        escrowAddr = payable(escrowAddrTemp);
-        paymentId = invoiceId;
-        vm.stopPrank();
+    function test_expired_forceRefund_behavior() public {
+        (address esc, uint256 id) = _createPayment(payer, receiver, address(token), 50 ether, 15 minutes, false);
 
-        // Deposit tokens via escrow
-        vm.startPrank(payer);
-        token.approve(escrowAddr, 50 ether);
-        PaymentEscrow(escrowAddr).depositToken(50 ether);
-        vm.stopPrank();
+        _depositToken(esc, payer, 50 ether);
 
-        // Warp past expiration
         vm.warp(block.timestamp + 16 minutes);
 
-        // Force finalize
         vm.prank(admin);
-        bool success = gateway.finalizePayment(paymentId, true);
+        bool ok = gateway.finalizePayment(id, true);
+        assertFalse(ok);
 
-        assertFalse(success);
-        assertEq(token.balanceOf(receiver), 0); // expired -> receiver gets 0
-        assertEq(token.balanceOf(payer), 995 ether); // refunded 90%
-        assertEq(token.balanceOf(address(gateway)), 5 ether); // 10% fee
+        assertEq(token.balanceOf(payer), 995 ether);
+        assertEq(token.balanceOf(address(gateway)), 5 ether);
+        assertEq(token.balanceOf(receiver), 0);
     }
 
-    function test_ReentrancyBlocked() public {
-        // Create payment
-        vm.startPrank(admin);
-        (address escrowAddrTemp, uint256 invoiceId) = gateway.createPayment(
-            payer,
-            receiver,
-            address(token),
-            10 ether,
-            15 minutes,
-            false
-        );
-        escrowAddr = payable(escrowAddrTemp);
-        paymentId = invoiceId;
-        vm.stopPrank();
+    function test_getReadyToFinalizeInvoices_returns_only_ready() public {
+        (address esc1, uint256 id1) = _createPayment(payer, receiver, address(token), 10 ether, 15 minutes, false);
+        (, uint256 id2) = _createPayment(payer, receiver, address(token), 20 ether, 15 minutes, false);
+        (address esc3, uint256 id3) = _createPayment(payer, receiver, address(token), 30 ether, 15 minutes, false);
 
-        // Deposit tokens
-        vm.startPrank(payer);
-        token.approve(escrowAddr, 10 ether);
-        PaymentEscrow(escrowAddr).depositToken(10 ether);
-        vm.stopPrank();
+        _depositToken(esc1, payer, 10 ether);
+        _transferToEscrow(esc3, payer, 30 ether);
 
-        // Finalize payment
-        vm.prank(admin);
-        bool success = gateway.finalizePayment(paymentId, false);
-        assertTrue(success);
+        uint256[] memory ready = gateway.getReadyToFinalizeInvoices();
 
-        // Reentrancy check: finalize again should fail
+        bool found1 = false;
+        bool found3 = false;
+        bool found2 = false;
+        for (uint256 i = 0; i < ready.length; i++) {
+            if (ready[i] == id1) found1 = true;
+            if (ready[i] == id3) found3 = true;
+            if (ready[i] == id2) found2 = true;
+        }
+        assertTrue(found1 && found3 && !found2);
+    }
+
+    function test_onlyAdmin_can_create_and_finalize() public {
+        vm.prank(other);
         vm.expectRevert();
-        PaymentEscrow(escrowAddr).finalize(false);
+        gateway.createPayment(payer, receiver, address(token), 10 ether, 15 minutes, false);
+
+        (, uint256 id) = _createPayment(payer, receiver, address(token), 10 ether, 15 minutes, false);
+
+        vm.prank(other);
+        vm.expectRevert();
+        gateway.finalizePayment(id, false);
+    }
+
+    function test_planCapacity_enforced() public {
+        vm.startPrank(owner);
+        gateway.definePlan(2, 1);
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+        gateway.assignPlan(receiver, 2);
+        vm.stopPrank();
+
+        _createPayment(payer, receiver, address(token), 1 ether, 1 hours, false);
+
+        vm.prank(admin);
+        vm.expectRevert();
+        gateway.createPayment(payer, receiver, address(token), 1 ether, 1 hours, false);
+    }
+
+    function test_distributeNativeReward_edgeCases() public {
+        vm.prank(admin);
+        vm.expectRevert();
+        gateway.distributeNativeReward(0);
+
+        vm.prank(admin);
+        vm.expectRevert();
+        gateway.distributeNativeReward(101);
+
+        // normal case
+        vm.deal(address(gateway), 10 ether);
+        vm.prank(admin);
+        gateway.distributeNativeReward(50);
+
+        // pending rewards correctly set
+        assertEq(gateway.pendingRewards(receiver), 5 ether);
     }
 }
