@@ -172,8 +172,8 @@ contract PaymentUnitTest is Test {
         bool ok = gateway.finalizePayment(id, false);
         assertFalse(ok);
 
-        assertEq(token.balanceOf(payer), 95 ether);
-        assertEq(token.balanceOf(address(gateway)), 5 ether);
+        assertEq(token.balanceOf(payer), 97.5 ether);
+        assertEq(token.balanceOf(address(gateway)), 2.5 ether);
         assertEq(token.balanceOf(receiver), 0);
     }
 

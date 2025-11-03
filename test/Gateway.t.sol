@@ -138,6 +138,59 @@ contract GatewayUnitTest is Test {
         gateway.finalizePayment(id, false);
     }
 
+    function test_createPayment_and_finalize_with_too_money_with_depositToken() public {
+        (address esc, uint256 id) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            50 ether,
+            15 minutes,
+            false
+        );
+
+        _depositToken(esc, payer, 50 ether);
+        _transferToEscrow(esc, payer, 50 ether);
+
+        vm.prank(admin);
+        bool ok = gateway.finalizePayment(id, false);
+        assertTrue(ok);
+
+        assertEq(token.balanceOf(receiver), 49 ether);
+        assertEq(token.balanceOf(address(gateway)), 1 ether);
+        assertEq(token.balanceOf(payer), 950 ether);
+
+
+        uint256[] memory ready = gateway.getReadyToFinalizeInvoices();
+        for (uint256 i = 0; i < ready.length; i++) {
+            assertTrue(ready[i] != id);
+        }
+    }
+
+    function test_createPayment_and_finalize_with_too_money_with_direct() public {
+        (address esc, uint256 id) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            50 ether,
+            15 minutes,
+            false
+        );
+
+        _transferToEscrow(esc, payer, 100 ether);
+
+        vm.prank(admin);
+        bool ok = gateway.finalizePayment(id, false);
+        assertTrue(ok);
+
+        assertEq(token.balanceOf(receiver), 49 ether);
+        assertEq(token.balanceOf(address(gateway)), 51 ether);
+
+        vm.prank(admin);
+        vm.expectRevert();
+        gateway.finalizePayment(id, false);
+    }
+    
+
     function test_fiatFlow_gateway_receives_all() public {
         (address esc, uint256 id) = _createPayment(
             payer,
@@ -176,8 +229,8 @@ contract GatewayUnitTest is Test {
         bool ok = gateway.finalizePayment(id, true);
         assertFalse(ok);
 
-        assertEq(token.balanceOf(payer), 995 ether);
-        assertEq(token.balanceOf(address(gateway)), 5 ether);
+        assertEq(token.balanceOf(payer), 997.5 ether);
+        assertEq(token.balanceOf(address(gateway)), 2.5 ether);
         assertEq(token.balanceOf(receiver), 0);
     }
 

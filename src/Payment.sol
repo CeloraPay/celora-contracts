@@ -149,26 +149,35 @@ contract Payment is ReentrancyGuard {
             alreadyBalance = IERC20(token).balanceOf(address(this));
         }
 
+        bool expired = block.timestamp > expiresAt || _forceExpired;
+
         if (!deposited && alreadyBalance < amount) {
             // nothing deposited — nothing to do
             emit Finalized(false, 0, 0, 0, false);
             return (false, 0, 0);
         }
 
-        bool expired = block.timestamp > expiresAt || _forceExpired;
         uint256 gatewayShare;
         uint256 toReceiver;
         uint256 toSender;
+        uint256 depositorShare;
 
         finalized = true;
 
         if (!expired) {
             // Success within time: gateway 2%, receiver 98%
-            gatewayShare = (alreadyBalance * 2) / 100;
-            toReceiver = alreadyBalance - gatewayShare;
+            gatewayShare = (amount * 2) / 100;
+            toReceiver = amount - gatewayShare;
+            depositorShare = alreadyBalance - amount;
+
+            if(depositor != address(0) && depositorShare != 0){
+                _transferFunds(token, depositor, depositorShare);
+            }else{
+                gatewayShare += depositorShare;
+            }
 
             if (receiveFiat) {
-                _transferFunds(token, gateway, alreadyBalance);
+                _transferFunds(token, gateway, gatewayShare + toReceiver);
 
                 emit Finalized(true, toReceiver, gatewayShare, 0, receiveFiat);
                 return (true, alreadyBalance, toReceiver);
@@ -181,7 +190,7 @@ contract Payment is ReentrancyGuard {
             return (true, alreadyBalance, toReceiver);
         } else {
             // Expired: gateway 10%, refund 90% to sender
-            gatewayShare = (alreadyBalance * 10) / 100;
+            gatewayShare = (alreadyBalance * 5) / 100;
             toSender = alreadyBalance - gatewayShare;
 
             _transferFunds(token, gateway, gatewayShare);

@@ -217,6 +217,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         );
 
         SPayment storage p = payments[paymentAddr];
+        p.paymentAddr = paymentAddr;
         p.payer = payer;
         p.receiver = receiver;
         p.token = token;
@@ -319,7 +320,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         Payment payment = Payment(payable(paymentAddr));
 
         bool isPayed = payment.isPay();
-        require(isPayed, "invoice not payed");
+        require(isPayed, "invoice not payed");    
 
         address rcv = payment.receiver();
 
@@ -339,7 +340,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         payments[paymentAddr].depositedAmount = receiveAmount;
         payments[paymentAddr].finalized = success;
 
-        if (success && isActiveInvoice[invoiceId]) {
+        if (isActiveInvoice[invoiceId]) {
             isActiveInvoice[invoiceId] = false;
             _removeActiveInvoice(invoiceId);
         }
