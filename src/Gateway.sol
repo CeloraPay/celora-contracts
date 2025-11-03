@@ -5,8 +5,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {PaymentEscrow} from "./PaymentEscrow.sol";
-import {IReceiver} from './interfaces/IReceiver.sol';
+import {Payment} from "./Payment.sol";
+import {IReceiver} from "./interfaces/IReceiver.sol";
 import {IPayment} from "./interfaces/IPayment.sol";
 
 error NotOwner();
@@ -16,7 +16,7 @@ error NotInitializedReceiver();
 error TokenNotEnabled(address token);
 error InvalidPercent();
 
-contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
+contract Gateway is ReentrancyGuard, IReceiver, IPayment {
     using SafeERC20 for IERC20;
 
     address public owner;
@@ -28,7 +28,7 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
     mapping(address => Receiver) private receivers;
     address[] public receiversList;
 
-    mapping(address => Payment) private payments;
+    mapping(address => SPayment) private payments;
     address[] public paymentsList;
 
     mapping(uint256 => uint256) public planCapacity;
@@ -47,7 +47,7 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
     event TokenEnabled(address indexed token);
     event TokenDisabled(address indexed token);
     event PlanDefined(uint256 indexed planId, uint256 capacity);
-    
+
     event RewardDistributed(
         uint256 percent,
         uint256 totalAmount,
@@ -115,7 +115,10 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
         return tokenList;
     }
 
-    function registerReceiver(address _addr, string calldata _description) external onlyAdmin {
+    function registerReceiver(
+        address _addr,
+        string calldata _description
+    ) external onlyAdmin {
         if (receivers[_addr].addr != address(0)) {
             revert ReceiverAlreadyRegistered(_addr);
         }
@@ -131,14 +134,15 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
         emit ReceiverRegistered(_addr, 1);
     }
 
-    function getReceiver(address _addr) external view returns (Receiver memory) {
+    function getReceiver(
+        address _addr
+    ) external view returns (Receiver memory) {
         if (receivers[_addr].addr == address(0)) {
             revert ReceiverNotFound(_addr);
         }
 
         return receivers[_addr];
     }
-
 
     function definePlan(uint256 planId, uint256 capacity) external onlyOwner {
         require(capacity > 0, "capacity must be >0");
@@ -173,7 +177,8 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
         returns (address paymentAddr, uint256 invoiceId)
     {
         if (!enabledTokens[token]) revert TokenNotEnabled(token);
-        if (receivers[receiver].addr == address(0)) revert NotInitializedReceiver();
+        if (receivers[receiver].addr == address(0))
+            revert NotInitializedReceiver();
 
         uint256 planId = receivers[receiver].planId;
         require(planId != 0, "receiver has no plan assigned");
@@ -188,9 +193,12 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
 
         receivers[receiver].activePayments += 1;
         receivers[receiver].invoiceIds.push(invoiceId);
-        emit ActivePaymentCountChanged(receiver, receivers[receiver].activePayments);
+        emit ActivePaymentCountChanged(
+            receiver,
+            receivers[receiver].activePayments
+        );
 
-        PaymentEscrow payment = new PaymentEscrow();
+        Payment payment = new Payment();
         paymentAddr = address(payment);
 
         invoiceToPayment[invoiceId] = paymentAddr;
@@ -208,7 +216,7 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
             receiveFiat
         );
 
-        Payment storage p = payments[paymentAddr];
+        SPayment storage p = payments[paymentAddr];
         p.payer = payer;
         p.receiver = receiver;
         p.token = token;
@@ -233,7 +241,7 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
         return (paymentAddr, invoiceId);
     }
 
-    function getPayment(address _addr) external view returns(Payment memory){
+    function getPayment(address _addr) external view returns (SPayment memory) {
         if (payments[_addr].paymentAddr == address(0)) {
             revert PaymentNotFound(_addr);
         }
@@ -253,7 +261,11 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
         }
     }
 
-    function getReadyToFinalizeInvoices() external view returns (uint256[] memory) {
+    function getReadyToFinalizeInvoices()
+        external
+        view
+        returns (uint256[] memory)
+    {
         uint256 len = activeInvoiceIds.length;
         uint256 count = 0;
 
@@ -263,7 +275,7 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
 
             if (paymentAddr == address(0)) continue;
 
-            PaymentEscrow payment = PaymentEscrow(payable(paymentAddr));
+            Payment payment = Payment(payable(paymentAddr));
 
             try payment.isPay() returns (bool payed) {
                 if (payed && !payment.finalized()) {
@@ -280,10 +292,10 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
         for (uint256 i = 0; i < len; i++) {
             uint256 id = activeInvoiceIds[i];
             address paymentAddr = invoiceToPayment[id];
-            
+
             if (paymentAddr == address(0)) continue;
 
-            PaymentEscrow payment = PaymentEscrow(payable(paymentAddr));
+            Payment payment = Payment(payable(paymentAddr));
 
             try payment.isPay() returns (bool payed) {
                 if (payed && !payment.finalized()) {
@@ -297,7 +309,6 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
         return readyIds;
     }
 
-
     function finalizePayment(
         uint256 invoiceId,
         bool forceExpired
@@ -305,7 +316,7 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
         address paymentAddr = invoiceToPayment[invoiceId];
         require(paymentAddr != address(0), "invoice not found");
 
-        PaymentEscrow payment = PaymentEscrow(payable(paymentAddr));
+        Payment payment = Payment(payable(paymentAddr));
 
         bool isPayed = payment.isPay();
         require(isPayed, "invoice not payed");
@@ -317,13 +328,17 @@ contract PaymentGateway is ReentrancyGuard, IReceiver, IPayment{
             emit ActivePaymentCountChanged(rcv, receivers[rcv].activePayments);
         }
 
-        (bool success, uint256 receiveAmount, uint256 toReceiverAmount) = payment.finalize(forceExpired);
+        (
+            bool success,
+            uint256 receiveAmount,
+            uint256 toReceiverAmount
+        ) = payment.finalize(forceExpired);
         emit PaymentFinalized(invoiceId, paymentAddr, success);
 
         receivers[rcv].receivedAmount += toReceiverAmount;
         payments[paymentAddr].depositedAmount = receiveAmount;
         payments[paymentAddr].finalized = success;
-        
+
         if (success && isActiveInvoice[invoiceId]) {
             isActiveInvoice[invoiceId] = false;
             _removeActiveInvoice(invoiceId);

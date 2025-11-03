@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {PaymentEscrow} from "../src/PaymentEscrow.sol";
-import {PaymentGateway} from "../src/PaymentGateway.sol";
+import {Payment} from "../src/Payment.sol";
+import {Gateway} from "../src/Gateway.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract TestERC20 is ERC20 {
@@ -14,9 +14,9 @@ contract TestERC20 is ERC20 {
     }
 }
 
-contract EscrowUnitTest is Test {
+contract PaymentUnitTest is Test {
     TestERC20 public token;
-    PaymentGateway public gateway;
+    Gateway public gateway;
 
     address public owner = address(0x10);
     address public admin = address(0x10);
@@ -27,7 +27,7 @@ contract EscrowUnitTest is Test {
     function setUp() public {
         token = new TestERC20("T", "T");
         vm.startPrank(owner);
-        gateway = new PaymentGateway();
+        gateway = new Gateway();
         gateway.enableToken(address(token));
         vm.stopPrank();
 
@@ -72,7 +72,7 @@ contract EscrowUnitTest is Test {
         vm.startPrank(payer);
         token.approve(esc, 5 ether);
         vm.expectRevert();
-        PaymentEscrow(payable(esc)).depositToken(5 ether);
+        Payment(payable(esc)).depositToken(5 ether);
         vm.stopPrank();
     }
 
@@ -111,7 +111,7 @@ contract EscrowUnitTest is Test {
 
         vm.startPrank(payer);
         vm.expectRevert();
-        PaymentEscrow(payable(esc)).depositToken(1 ether);
+        Payment(payable(esc)).depositToken(1 ether);
         vm.stopPrank();
     }
 
@@ -144,13 +144,13 @@ contract EscrowUnitTest is Test {
         vm.startPrank(other);
         token.approve(esc, 10 ether);
         vm.expectRevert();
-        PaymentEscrow(payable(esc)).depositToken(10 ether);
+        Payment(payable(esc)).depositToken(10 ether);
         vm.stopPrank();
 
         token.mint(payer, 10 ether);
         vm.startPrank(payer);
         token.approve(esc, 10 ether);
-        PaymentEscrow(payable(esc)).depositToken(10 ether);
+        Payment(payable(esc)).depositToken(10 ether);
         vm.stopPrank();
     }
 
@@ -231,7 +231,7 @@ contract EscrowUnitTest is Test {
         _depositToken(esc, payer, 10 ether);
 
         vm.expectRevert();
-        PaymentEscrow(payable(esc)).finalize(false);
+        Payment(payable(esc)).finalize(false);
     }
 
     function _depositToken(
@@ -241,7 +241,7 @@ contract EscrowUnitTest is Test {
     ) internal {
         vm.startPrank(_payer);
         token.approve(_escrow, _amount);
-        PaymentEscrow(payable(_escrow)).depositToken(_amount);
+        Payment(payable(_escrow)).depositToken(_amount);
         vm.stopPrank();
     }
 }

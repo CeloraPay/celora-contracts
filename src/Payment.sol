@@ -12,7 +12,7 @@ error DepositNotExpected();
 error AlreadyDeposited();
 error FinalizedAlready();
 
-contract PaymentEscrow is ReentrancyGuard {
+contract Payment is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // created by gateway; temporary gateway set in constructor to the deployer (gateway)
@@ -123,7 +123,7 @@ contract PaymentEscrow is ReentrancyGuard {
         emit Deposited(msg.sender, msg.value);
     }
 
-    function isPay() external onlyGateway view returns (bool) {
+    function isPay() external view onlyGateway returns (bool) {
         uint256 alreadyBalance;
 
         if (token == address(0)) {
@@ -137,7 +137,9 @@ contract PaymentEscrow is ReentrancyGuard {
 
     // finalize can only be called by gateway (which enforces admin in its own contract)
     // returns true if success (within expiry), false if expired/refunded
-    function finalize(bool _forceExpired) external onlyGateway returns (bool, uint256, uint256) {
+    function finalize(
+        bool _forceExpired
+    ) external onlyGateway returns (bool, uint256, uint256) {
         if (finalized) revert FinalizedAlready();
 
         uint256 alreadyBalance;
@@ -165,7 +167,7 @@ contract PaymentEscrow is ReentrancyGuard {
             gatewayShare = (alreadyBalance * 2) / 100;
             toReceiver = alreadyBalance - gatewayShare;
 
-            if (receiveFiat){
+            if (receiveFiat) {
                 _transferFunds(token, gateway, alreadyBalance);
 
                 emit Finalized(true, toReceiver, gatewayShare, 0, receiveFiat);

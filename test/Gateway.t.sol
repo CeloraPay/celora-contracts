@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {PaymentGateway} from "../src/PaymentGateway.sol";
-import {PaymentEscrow} from "../src/PaymentEscrow.sol";
+import {Gateway} from "../src/Gateway.sol";
+import {Payment} from "../src/Payment.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract TestERC20 is ERC20 {
@@ -14,10 +14,10 @@ contract TestERC20 is ERC20 {
     }
 }
 
-contract PaymentGatewayTest is Test {
-    PaymentGateway public gateway;
+contract GatewayUnitTest is Test {
+    Gateway public gateway;
     TestERC20 public token;
-    
+
     address public owner = address(0x10);
     address public admin = address(0x10); // owner is admin by constructor
     address public receiver = address(0x12);
@@ -29,14 +29,14 @@ contract PaymentGatewayTest is Test {
 
         // Deploy Gateway as owner (owner will be admin too)
         vm.startPrank(owner);
-        gateway = new PaymentGateway();
+        gateway = new Gateway();
         // enable ERC20 token
         gateway.enableToken(address(token));
         vm.stopPrank();
 
         // Register receiver (admin)
         vm.startPrank(admin);
-        gateway.registerReceiver(receiver,"Shop");
+        gateway.registerReceiver(receiver, "Shop");
         vm.stopPrank();
 
         // Mint tokens to payer and other
@@ -66,14 +66,22 @@ contract PaymentGatewayTest is Test {
         return (esc, id);
     }
 
-    function _depositToken(address _escrow, address _payer, uint256 _amount) internal {
+    function _depositToken(
+        address _escrow,
+        address _payer,
+        uint256 _amount
+    ) internal {
         vm.startPrank(_payer);
         token.approve(_escrow, _amount);
-        PaymentEscrow(payable(_escrow)).depositToken(_amount);
+        Payment(payable(_escrow)).depositToken(_amount);
         vm.stopPrank();
     }
 
-    function _transferToEscrow(address _escrow, address _payer, uint256 _amount) internal {
+    function _transferToEscrow(
+        address _escrow,
+        address _payer,
+        uint256 _amount
+    ) internal {
         vm.startPrank(_payer);
         token.approve(_payer, _amount);
         token.transferFrom(_payer, _escrow, _amount);
@@ -82,7 +90,14 @@ contract PaymentGatewayTest is Test {
 
     // ------------------ PAYMENT CREATION & FINALIZE ------------------
     function test_createPayment_and_finalize_with_depositToken() public {
-        (address esc, uint256 id) = _createPayment(payer, receiver, address(token), 100 ether, 15 minutes, false);
+        (address esc, uint256 id) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            100 ether,
+            15 minutes,
+            false
+        );
 
         _depositToken(esc, payer, 100 ether);
 
@@ -100,7 +115,14 @@ contract PaymentGatewayTest is Test {
     }
 
     function test_createPayment_and_finalize_with_direct_transfer() public {
-        (address esc, uint256 id) = _createPayment(payer, receiver, address(token), 100 ether, 15 minutes, false);
+        (address esc, uint256 id) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            100 ether,
+            15 minutes,
+            false
+        );
 
         _transferToEscrow(esc, payer, 100 ether);
 
@@ -117,7 +139,14 @@ contract PaymentGatewayTest is Test {
     }
 
     function test_fiatFlow_gateway_receives_all() public {
-        (address esc, uint256 id) = _createPayment(payer, receiver, address(token), 100 ether, 15 minutes, true);
+        (address esc, uint256 id) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            100 ether,
+            15 minutes,
+            true
+        );
 
         _depositToken(esc, payer, 100 ether);
 
@@ -130,7 +159,14 @@ contract PaymentGatewayTest is Test {
     }
 
     function test_expired_forceRefund_behavior() public {
-        (address esc, uint256 id) = _createPayment(payer, receiver, address(token), 50 ether, 15 minutes, false);
+        (address esc, uint256 id) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            50 ether,
+            15 minutes,
+            false
+        );
 
         _depositToken(esc, payer, 50 ether);
 
@@ -146,9 +182,30 @@ contract PaymentGatewayTest is Test {
     }
 
     function test_getReadyToFinalizeInvoices_returns_only_ready() public {
-        (address esc1, uint256 id1) = _createPayment(payer, receiver, address(token), 10 ether, 15 minutes, false);
-        (, uint256 id2) = _createPayment(payer, receiver, address(token), 20 ether, 15 minutes, false);
-        (address esc3, uint256 id3) = _createPayment(payer, receiver, address(token), 30 ether, 15 minutes, false);
+        (address esc1, uint256 id1) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            10 ether,
+            15 minutes,
+            false
+        );
+        (, uint256 id2) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            20 ether,
+            15 minutes,
+            false
+        );
+        (address esc3, uint256 id3) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            30 ether,
+            15 minutes,
+            false
+        );
 
         _depositToken(esc1, payer, 10 ether);
         _transferToEscrow(esc3, payer, 30 ether);
@@ -169,9 +226,23 @@ contract PaymentGatewayTest is Test {
     function test_onlyAdmin_can_create_and_finalize() public {
         vm.prank(other);
         vm.expectRevert();
-        gateway.createPayment(payer, receiver, address(token), 10 ether, 15 minutes, false);
+        gateway.createPayment(
+            payer,
+            receiver,
+            address(token),
+            10 ether,
+            15 minutes,
+            false
+        );
 
-        (, uint256 id) = _createPayment(payer, receiver, address(token), 10 ether, 15 minutes, false);
+        (, uint256 id) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            10 ether,
+            15 minutes,
+            false
+        );
 
         vm.prank(other);
         vm.expectRevert();
@@ -187,11 +258,25 @@ contract PaymentGatewayTest is Test {
         gateway.assignPlan(receiver, 2);
         vm.stopPrank();
 
-        _createPayment(payer, receiver, address(token), 1 ether, 1 hours, false);
+        _createPayment(
+            payer,
+            receiver,
+            address(token),
+            1 ether,
+            1 hours,
+            false
+        );
 
         vm.prank(admin);
         vm.expectRevert();
-        gateway.createPayment(payer, receiver, address(token), 1 ether, 1 hours, false);
+        gateway.createPayment(
+            payer,
+            receiver,
+            address(token),
+            1 ether,
+            1 hours,
+            false
+        );
     }
 
     function test_distributeNativeReward_edgeCases() public {

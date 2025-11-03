@@ -228,7 +228,7 @@
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct IPayment.Payment",
+        "internalType": "struct IPayment.SPayment",
         "components": [
           {
             "name": "paymentAddr",

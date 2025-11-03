@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 interface IPayment {
-    struct Payment {
+    struct SPayment {
         address paymentAddr;
         address payer;
         address receiver;
@@ -45,5 +45,5 @@ interface IPayment {
 
     function getPayment(
         address _paymnetAddr
-    ) external view returns (Payment memory);
+    ) external view returns (SPayment memory);
 }
