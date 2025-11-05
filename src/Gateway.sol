@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -27,6 +27,9 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
 
     mapping(address => Receiver) private receivers;
     address[] public receiversList;
+
+    mapping(address => mapping(address => uint256)) private receiversTokenAmounts; 
+    mapping(address => address[]) private receiverTokens;
 
     mapping(address => SPayment) private payments;
     address[] public paymentsList;
@@ -128,7 +131,6 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         r.addr = _addr;
         r.planId = 1;
         r.description = _description;
-        r.receivedAmount = 0;
         receiversList.push(_addr);
 
         emit ReceiverRegistered(_addr, 1);
@@ -136,12 +138,22 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
 
     function getReceiver(
         address _addr
-    ) external view returns (Receiver memory) {
+    ) external view returns (Receiver memory, TokenAmount[] memory) {
         if (receivers[_addr].addr == address(0)) {
             revert ReceiverNotFound(_addr);
         }
 
-        return receivers[_addr];
+        address[] memory tokens = receiverTokens[_addr];
+        TokenAmount[] memory tokenData = new TokenAmount[](tokens.length);
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            tokenData[i] = TokenAmount({
+                token: tokens[i],
+                amount: receiversTokenAmounts[_addr][tokens[i]]
+            });
+        }
+
+        return (receivers[_addr], tokenData);
     }
 
     function definePlan(uint256 planId, uint256 capacity) external onlyOwner {
@@ -262,6 +274,24 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         }
     }
 
+    function _finalizeNotPayAndExpired(uint256 invoiceId) internal {
+        address paymentAddr = invoiceToPayment[invoiceId];
+        Payment payment = Payment(payable(paymentAddr));
+        address rcv = payment.receiver();
+
+        if (rcv != address(0) && receivers[rcv].activePayments > 0) {
+            receivers[rcv].activePayments -= 1;
+            emit ActivePaymentCountChanged(rcv, receivers[rcv].activePayments);
+        }
+
+        if (isActiveInvoice[invoiceId]) {
+            isActiveInvoice[invoiceId] = false;
+            _removeActiveInvoice(invoiceId);
+        }
+
+        payments[paymentAddr].finalized = true;
+    }
+
     function getReadyToFinalizeInvoices()
         external
         view
@@ -279,6 +309,10 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
             Payment payment = Payment(payable(paymentAddr));
 
             try payment.isPay() returns (bool payed) {
+                if(!payed && block.timestamp > payment.expiresAt() && !payment.finalized()){
+                    count++;
+                }
+
                 if (payed && !payment.finalized()) {
                     count++;
                 }
@@ -288,6 +322,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         }
 
         uint256[] memory readyIds = new uint256[](count);
+
         uint256 idx = 0;
 
         for (uint256 i = 0; i < len; i++) {
@@ -299,6 +334,10 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
             Payment payment = Payment(payable(paymentAddr));
 
             try payment.isPay() returns (bool payed) {
+                if(!payed && block.timestamp > payment.expiresAt() && !payment.finalized()){
+                    readyIds[idx++] = id;
+                }
+
                 if (payed && !payment.finalized()) {
                     readyIds[idx++] = id;
                 }
@@ -319,10 +358,18 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
 
         Payment payment = Payment(payable(paymentAddr));
 
-        bool isPayed = payment.isPay();
-        require(isPayed, "invoice not payed");    
-
+        
         address rcv = payment.receiver();
+        bool expired = block.timestamp > payment.expiresAt();
+        bool isPayed = payment.isPay();
+
+        if(!isPayed && expired){
+            _finalizeNotPayAndExpired(invoiceId);
+
+            return true;
+        }
+
+        require(isPayed, "invoice not payed");    
 
         if (rcv != address(0) && receivers[rcv].activePayments > 0) {
             receivers[rcv].activePayments -= 1;
@@ -336,7 +383,13 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         ) = payment.finalize(forceExpired);
         emit PaymentFinalized(invoiceId, paymentAddr, success);
 
-        receivers[rcv].receivedAmount += toReceiverAmount;
+        address tokenAddr = payment.token();
+
+        if (receiversTokenAmounts[rcv][tokenAddr] == 0) {
+            receiverTokens[rcv].push(tokenAddr);
+        }
+
+        receiversTokenAmounts[rcv][tokenAddr] += toReceiverAmount;
         payments[paymentAddr].depositedAmount = receiveAmount;
         payments[paymentAddr].finalized = success;
 

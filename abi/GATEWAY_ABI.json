@@ -340,14 +340,26 @@
             "internalType": "uint256"
           },
           {
-            "name": "receivedAmount",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
             "name": "description",
             "type": "string",
             "internalType": "string"
+          }
+        ]
+      },
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct IReceiver.TokenAmount[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }

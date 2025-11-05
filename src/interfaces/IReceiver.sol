@@ -7,8 +7,12 @@ interface IReceiver {
         uint256 planId;
         uint256[] invoiceIds;
         uint256 activePayments;
-        uint256 receivedAmount;
         string description;
+    }
+
+    struct TokenAmount {
+        address token;
+        uint256 amount;
     }
 
     event ReceiverRegistered(address indexed _addr, uint256 indexed _planId);
@@ -24,7 +28,7 @@ interface IReceiver {
         string calldata _description
     ) external;
 
-    function getReceiver(address _addr) external view returns (Receiver memory);
+    function getReceiver(address _addr) external view returns (Receiver memory, TokenAmount[] memory);
 
     function assignPlan(address receiver, uint256 planId) external;
 }

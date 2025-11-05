@@ -189,7 +189,26 @@ contract GatewayUnitTest is Test {
         vm.expectRevert();
         gateway.finalizePayment(id, false);
     }
-    
+
+    function test_createPayment_and_notPayed_and_expired_finalize() public {
+        (, uint256 id) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            50 ether,
+            15 minutes,
+            false
+        );
+
+        vm.warp(block.timestamp + 16 minutes);
+
+        vm.prank(admin);
+        bool ok = gateway.finalizePayment(id, false);
+        assertTrue(ok);
+
+        assertEq(token.balanceOf(receiver), 0 ether);
+        assertEq(token.balanceOf(address(gateway)), 0 ether);
+    } 
 
     function test_fiatFlow_gateway_receives_all() public {
         (address esc, uint256 id) = _createPayment(
@@ -274,6 +293,48 @@ contract GatewayUnitTest is Test {
             if (ready[i] == id2) found2 = true;
         }
         assertTrue(found1 && found3 && !found2);
+    }
+
+    function test_getReadyExpiredToFinalizeInvoices_returns_only_ready() public {
+        (, uint256 id1) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            10 ether,
+            20 minutes,
+            false
+        );
+        (, uint256 id2) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            20 ether,
+            15 minutes,
+            false
+        );
+        (, uint256 id3) = _createPayment(
+            payer,
+            receiver,
+            address(token),
+            30 ether,
+            15 minutes,
+            false
+        );
+
+        vm.warp(block.timestamp + 16 minutes);
+
+        uint256[] memory ready = gateway.getReadyToFinalizeInvoices();
+
+        bool found1 = false;
+        bool found3 = false;
+        bool found2 = false;
+        for (uint256 i = 0; i < ready.length; i++) {
+            if (ready[i] == id1) found1 = true;
+            if (ready[i] == id2) found2 = true;
+            if (ready[i] == id3) found3 = true;
+        }
+
+        assertTrue(!found1 && found3 && found2);
     }
 
     function test_onlyAdmin_can_create_and_finalize() public {
