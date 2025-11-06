@@ -1,16 +1,20 @@
 {
-  "name": "celora-contracts",
-  "version": "1.0.0",
-  "description": "Celora V1 contracts",
-  "directories": {
-    "lib": "lib",
-    "test": "test"
-  },
-  "scripts": {
-    "setup": "npm ci; forge install"
-  },
-  "dependencies": {
-    "@openzeppelin/contracts": "^5.4.0",
-    "@openzeppelin/contracts-upgradeable": "^5.4.0"
-  }
+    "name": "celora-contracts",
+    "version": "1.0.0",
+    "description": "Celora V1 contracts",
+    "directories": {
+        "lib": "lib",
+        "test": "test"
+    },
+    "scripts": {
+        "setup": "npm ci; forge install"
+    },
+    "dependencies": {
+        "@openzeppelin/contracts": "^5.4.0",
+        "@openzeppelin/contracts-upgradeable": "^5.4.0"
+    },
+    "devDependencies": {
+        "prettier": "^3.6.2",
+        "prettier-plugin-solidity": "^2.1.0"
+    }
 }

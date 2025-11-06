@@ -26,11 +26,7 @@ interface IPayment {
         uint256 _expiresAt
     );
 
-    event PaymentFinalized(
-        uint256 indexed _invoiceId,
-        address _paymentAddress,
-        bool _success
-    );
+    event PaymentFinalized(uint256 indexed _invoiceId, address _paymentAddress, bool _success);
 
     error PaymentNotFound(address _addr);
 
@@ -43,7 +39,5 @@ interface IPayment {
         bool _receiveFiat
     ) external returns (address _paymentAddr, uint256 _invoiceId);
 
-    function getPayment(
-        address _paymnetAddr
-    ) external view returns (SPayment memory);
+    function getPayment(address _paymnetAddr) external view returns (SPayment memory);
 }

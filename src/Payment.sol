@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 error NotGateway();
 error AlreadyInitialized();
@@ -32,13 +32,7 @@ contract Payment is ReentrancyGuard {
     address public depositor; // actual sender
 
     event Deposited(address indexed from, uint256 amount);
-    event Finalized(
-        bool success,
-        uint256 toReceiver,
-        uint256 toGateway,
-        uint256 toSender,
-        bool isFiat
-    );
+    event Finalized(bool success, uint256 toReceiver, uint256 toGateway, uint256 toSender, bool isFiat);
 
     modifier onlyGateway() {
         _onlyGateway();
@@ -137,9 +131,7 @@ contract Payment is ReentrancyGuard {
 
     // finalize can only be called by gateway (which enforces admin in its own contract)
     // returns true if success (within expiry), false if expired/refunded
-    function finalize(
-        bool _forceExpired
-    ) external onlyGateway returns (bool, uint256, uint256) {
+    function finalize(bool _forceExpired) external onlyGateway returns (bool, uint256, uint256) {
         if (finalized) revert FinalizedAlready();
 
         uint256 alreadyBalance;
@@ -151,9 +143,9 @@ contract Payment is ReentrancyGuard {
 
         bool expired = block.timestamp > expiresAt || _forceExpired;
 
-        if(alreadyBalance < amount && expired){
+        if (alreadyBalance < amount && expired) {
             finalized = true;
-            
+
             emit Finalized(false, 0, 0, 0, false);
             return (false, 0, 0);
         }
@@ -177,9 +169,9 @@ contract Payment is ReentrancyGuard {
             toReceiver = amount - gatewayShare;
             depositorShare = alreadyBalance - amount;
 
-            if(depositor != address(0) && depositorShare != 0){
+            if (depositor != address(0) && depositorShare != 0) {
                 _transferFunds(token, depositor, depositorShare);
-            }else{
+            } else {
                 gatewayShare += depositorShare;
             }
 
@@ -208,16 +200,12 @@ contract Payment is ReentrancyGuard {
         }
     }
 
-    function _transferFunds(
-        address _token,
-        address to,
-        uint256 value
-    ) internal {
+    function _transferFunds(address _token, address to, uint256 value) internal {
         if (value == 0) return;
 
         if (_token == address(0)) {
             // native CELO — use call and require success
-            (bool ok, ) = to.call{value: value}("");
+            (bool ok, ) = to.call{ value: value }("");
             require(ok, "native transfer failed");
         } else {
             // ERC20 safe transfer (handles non-standard tokens)

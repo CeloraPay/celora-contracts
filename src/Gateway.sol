@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {Payment} from "./Payment.sol";
-import {IReceiver} from "./interfaces/IReceiver.sol";
-import {IPayment} from "./interfaces/IPayment.sol";
+import { Payment } from "./Payment.sol";
+import { IReceiver } from "./interfaces/IReceiver.sol";
+import { IPayment } from "./interfaces/IPayment.sol";
 
 error NotOwner();
 error NotAdminGateway();
@@ -28,7 +28,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
     mapping(address => Receiver) private receivers;
     address[] public receiversList;
 
-    mapping(address => mapping(address => uint256)) private receiversTokenAmounts; 
+    mapping(address => mapping(address => uint256)) private receiversTokenAmounts;
     mapping(address => address[]) private receiverTokens;
 
     mapping(address => SPayment) private payments;
@@ -51,11 +51,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
     event TokenDisabled(address indexed token);
     event PlanDefined(uint256 indexed planId, uint256 capacity);
 
-    event RewardDistributed(
-        uint256 percent,
-        uint256 totalAmount,
-        uint256 perReceiver
-    );
+    event RewardDistributed(uint256 percent, uint256 totalAmount, uint256 perReceiver);
 
     modifier onlyOwner() {
         _onlyOwner();
@@ -118,10 +114,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         return tokenList;
     }
 
-    function registerReceiver(
-        address _addr,
-        string calldata _description
-    ) external onlyAdmin {
+    function registerReceiver(address _addr, string calldata _name) external onlyAdmin {
         if (receivers[_addr].addr != address(0)) {
             revert ReceiverAlreadyRegistered(_addr);
         }
@@ -130,15 +123,13 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
 
         r.addr = _addr;
         r.planId = 1;
-        r.description = _description;
+        r.name = _name;
         receiversList.push(_addr);
 
         emit ReceiverRegistered(_addr, 1);
     }
 
-    function getReceiver(
-        address _addr
-    ) external view returns (Receiver memory, TokenAmount[] memory) {
+    function getReceiver(address _addr) external view returns (Receiver memory, TokenAmount[] memory) {
         if (receivers[_addr].addr == address(0)) {
             revert ReceiverNotFound(_addr);
         }
@@ -147,10 +138,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         TokenAmount[] memory tokenData = new TokenAmount[](tokens.length);
 
         for (uint256 i = 0; i < tokens.length; i++) {
-            tokenData[i] = TokenAmount({
-                token: tokens[i],
-                amount: receiversTokenAmounts[_addr][tokens[i]]
-            });
+            tokenData[i] = TokenAmount({ token: tokens[i], amount: receiversTokenAmounts[_addr][tokens[i]] });
         }
 
         return (receivers[_addr], tokenData);
@@ -182,33 +170,21 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         uint256 amount,
         uint256 durationSeconds,
         bool receiveFiat
-    )
-        external
-        nonReentrant
-        onlyAdmin
-        returns (address paymentAddr, uint256 invoiceId)
-    {
+    ) external nonReentrant onlyAdmin returns (address paymentAddr, uint256 invoiceId) {
         if (!enabledTokens[token]) revert TokenNotEnabled(token);
-        if (receivers[receiver].addr == address(0))
-            revert NotInitializedReceiver();
+        if (receivers[receiver].addr == address(0)) revert NotInitializedReceiver();
 
         uint256 planId = receivers[receiver].planId;
         require(planId != 0, "receiver has no plan assigned");
 
         uint256 capacity = planCapacity[planId];
-        require(
-            receivers[receiver].activePayments < capacity,
-            "receiver plan limit reached"
-        );
+        require(receivers[receiver].activePayments < capacity, "receiver plan limit reached");
 
         invoiceId = nextInvoiceId++;
 
         receivers[receiver].activePayments += 1;
         receivers[receiver].invoiceIds.push(invoiceId);
-        emit ActivePaymentCountChanged(
-            receiver,
-            receivers[receiver].activePayments
-        );
+        emit ActivePaymentCountChanged(receiver, receivers[receiver].activePayments);
 
         Payment payment = new Payment();
         paymentAddr = address(payment);
@@ -217,16 +193,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         activeInvoiceIds.push(invoiceId);
         isActiveInvoice[invoiceId] = true;
 
-        payment.initialize(
-            address(this),
-            payer,
-            receiver,
-            token,
-            amount,
-            invoiceId,
-            durationSeconds,
-            receiveFiat
-        );
+        payment.initialize(address(this), payer, receiver, token, amount, invoiceId, durationSeconds, receiveFiat);
 
         SPayment storage p = payments[paymentAddr];
         p.paymentAddr = paymentAddr;
@@ -241,15 +208,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         p.createdAt = block.timestamp;
         p.expiresAt = block.timestamp + durationSeconds;
 
-        emit PaymentCreated(
-            invoiceId,
-            paymentAddr,
-            payer,
-            receiver,
-            token,
-            amount,
-            block.timestamp + durationSeconds
-        );
+        emit PaymentCreated(invoiceId, paymentAddr, payer, receiver, token, amount, block.timestamp + durationSeconds);
 
         return (paymentAddr, invoiceId);
     }
@@ -292,11 +251,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         payments[paymentAddr].finalized = true;
     }
 
-    function getReadyToFinalizeInvoices()
-        external
-        view
-        returns (uint256[] memory)
-    {
+    function getReadyToFinalizeInvoices() external view returns (uint256[] memory) {
         uint256 len = activeInvoiceIds.length;
         uint256 count = 0;
 
@@ -309,7 +264,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
             Payment payment = Payment(payable(paymentAddr));
 
             try payment.isPay() returns (bool payed) {
-                if(!payed && block.timestamp > payment.expiresAt() && !payment.finalized()){
+                if (!payed && block.timestamp > payment.expiresAt() && !payment.finalized()) {
                     count++;
                 }
 
@@ -334,7 +289,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
             Payment payment = Payment(payable(paymentAddr));
 
             try payment.isPay() returns (bool payed) {
-                if(!payed && block.timestamp > payment.expiresAt() && !payment.finalized()){
+                if (!payed && block.timestamp > payment.expiresAt() && !payment.finalized()) {
                     readyIds[idx++] = id;
                 }
 
@@ -349,38 +304,30 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         return readyIds;
     }
 
-    function finalizePayment(
-        uint256 invoiceId,
-        bool forceExpired
-    ) external onlyAdmin nonReentrant returns (bool) {
+    function finalizePayment(uint256 invoiceId, bool forceExpired) external onlyAdmin nonReentrant returns (bool) {
         address paymentAddr = invoiceToPayment[invoiceId];
         require(paymentAddr != address(0), "invoice not found");
 
         Payment payment = Payment(payable(paymentAddr));
 
-        
         address rcv = payment.receiver();
         bool expired = block.timestamp > payment.expiresAt();
         bool isPayed = payment.isPay();
 
-        if(!isPayed && expired){
+        if (!isPayed && expired) {
             _finalizeNotPayAndExpired(invoiceId);
 
             return true;
         }
 
-        require(isPayed, "invoice not payed");    
+        require(isPayed, "invoice not payed");
 
         if (rcv != address(0) && receivers[rcv].activePayments > 0) {
             receivers[rcv].activePayments -= 1;
             emit ActivePaymentCountChanged(rcv, receivers[rcv].activePayments);
         }
 
-        (
-            bool success,
-            uint256 receiveAmount,
-            uint256 toReceiverAmount
-        ) = payment.finalize(forceExpired);
+        (bool success, uint256 receiveAmount, uint256 toReceiverAmount) = payment.finalize(forceExpired);
         emit PaymentFinalized(invoiceId, paymentAddr, success);
 
         address tokenAddr = payment.token();
@@ -403,9 +350,7 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
 
     receive() external payable {}
 
-    function distributeNativeReward(
-        uint256 percent
-    ) external onlyAdmin nonReentrant {
+    function distributeNativeReward(uint256 percent) external onlyAdmin nonReentrant {
         if (percent == 0 || percent > 100) revert InvalidPercent();
         uint256 bal = address(this).balance;
         require(bal > 0, "no native balance");
@@ -427,24 +372,17 @@ contract Gateway is ReentrancyGuard, IReceiver, IPayment {
         require(amount > 0, "no reward");
         pendingRewards[msg.sender] = 0;
 
-        (bool ok, ) = msg.sender.call{value: amount}("");
+        (bool ok, ) = msg.sender.call{ value: amount }("");
         require(ok, "native transfer failed");
     }
 
-    function withdrawToken(
-        address token,
-        uint256 amount,
-        address to
-    ) external onlyOwner {
+    function withdrawToken(address token, uint256 amount, address to) external onlyOwner {
         require(token != address(0), "use native withdraw");
         IERC20(token).safeTransfer(to, amount);
     }
 
-    function withdrawNative(
-        uint256 amount,
-        address payable to
-    ) external onlyOwner {
-        (bool ok, ) = to.call{value: amount}("");
+    function withdrawNative(uint256 amount, address payable to) external onlyOwner {
+        (bool ok, ) = to.call{ value: amount }("");
         require(ok, "withdraw native failed");
     }
 

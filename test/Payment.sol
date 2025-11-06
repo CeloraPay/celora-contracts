@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {Payment} from "../src/Payment.sol";
-import {Gateway} from "../src/Gateway.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { Payment } from "../src/Payment.sol";
+import { Gateway } from "../src/Gateway.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract TestERC20 is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
@@ -47,27 +47,13 @@ contract PaymentUnitTest is Test {
         bool _isFiat
     ) internal returns (address, uint256) {
         vm.startPrank(admin);
-        (address esc, uint256 id) = gateway.createPayment(
-            _payer,
-            _receiver,
-            _token,
-            _amount,
-            _duration,
-            _isFiat
-        );
+        (address esc, uint256 id) = gateway.createPayment(_payer, _receiver, _token, _amount, _duration, _isFiat);
         vm.stopPrank();
         return (esc, id);
     }
 
     function test_depositToken_reverts_on_wrong_amount() public {
-        (address esc, ) = _createPayment(
-            payer,
-            receiver,
-            address(token),
-            10 ether,
-            1 hours,
-            false
-        );
+        (address esc, ) = _createPayment(payer, receiver, address(token), 10 ether, 1 hours, false);
 
         vm.startPrank(payer);
         token.approve(esc, 5 ether);
@@ -77,19 +63,12 @@ contract PaymentUnitTest is Test {
     }
 
     function test_depositNative_and_finalize() public {
-        (address esc, uint256 id) = _createPayment(
-            payer,
-            receiver,
-            address(0),
-            1 ether,
-            1 hours,
-            false
-        );
+        (address esc, uint256 id) = _createPayment(payer, receiver, address(0), 1 ether, 1 hours, false);
 
         vm.deal(payer, 2 ether);
 
         vm.prank(payer);
-        (bool ok, ) = payable(esc).call{value: 1 ether}("");
+        (bool ok, ) = payable(esc).call{ value: 1 ether }("");
         require(ok);
 
         vm.prank(admin);
@@ -100,14 +79,7 @@ contract PaymentUnitTest is Test {
     }
 
     function test_depositToken_reverts_if_token_is_native() public {
-        (address esc, ) = _createPayment(
-            payer,
-            receiver,
-            address(0),
-            1 ether,
-            1 hours,
-            false
-        );
+        (address esc, ) = _createPayment(payer, receiver, address(0), 1 ether, 1 hours, false);
 
         vm.startPrank(payer);
         vm.expectRevert();
@@ -116,29 +88,15 @@ contract PaymentUnitTest is Test {
     }
 
     function test_depositNative_reverts_if_token_is_erc20() public {
-        (address esc, ) = _createPayment(
-            payer,
-            receiver,
-            address(token),
-            1 ether,
-            1 hours,
-            false
-        );
+        (address esc, ) = _createPayment(payer, receiver, address(token), 1 ether, 1 hours, false);
 
         vm.prank(payer);
-        (bool ok, ) = payable(esc).call{value: 1 ether}("");
+        (bool ok, ) = payable(esc).call{ value: 1 ether }("");
         assertFalse(ok);
     }
 
     function test_only_expected_payer_can_deposit_when_set() public {
-        (address esc, ) = _createPayment(
-            payer,
-            receiver,
-            address(token),
-            10 ether,
-            1 hours,
-            false
-        );
+        (address esc, ) = _createPayment(payer, receiver, address(token), 10 ether, 1 hours, false);
 
         token.mint(other, 20 ether);
         vm.startPrank(other);
@@ -155,14 +113,7 @@ contract PaymentUnitTest is Test {
     }
 
     function test_finalize_expired_refund_logic() public {
-        (address esc, uint256 id) = _createPayment(
-            payer,
-            receiver,
-            address(token),
-            50 ether,
-            15 minutes,
-            false
-        );
+        (address esc, uint256 id) = _createPayment(payer, receiver, address(token), 50 ether, 15 minutes, false);
 
         _depositToken(esc, payer, 50 ether);
 
@@ -178,14 +129,7 @@ contract PaymentUnitTest is Test {
     }
 
     function test_finalize_successful_distribution_logic() public {
-        (address esc, uint256 id) = _createPayment(
-            payer,
-            receiver,
-            address(token),
-            100 ether,
-            15 minutes,
-            false
-        );
+        (address esc, uint256 id) = _createPayment(payer, receiver, address(token), 100 ether, 15 minutes, false);
 
         _depositToken(esc, payer, 100 ether);
 
@@ -198,14 +142,7 @@ contract PaymentUnitTest is Test {
     }
 
     function test_double_finalize_reverts() public {
-        (address esc, uint256 id) = _createPayment(
-            payer,
-            receiver,
-            address(token),
-            10 ether,
-            15 minutes,
-            false
-        );
+        (address esc, uint256 id) = _createPayment(payer, receiver, address(token), 10 ether, 15 minutes, false);
 
         _depositToken(esc, payer, 10 ether);
 
@@ -219,14 +156,7 @@ contract PaymentUnitTest is Test {
     }
 
     function test_direct_finalize_call_reverts_notGateway() public {
-        (address esc, ) = _createPayment(
-            payer,
-            receiver,
-            address(token),
-            10 ether,
-            15 minutes,
-            false
-        );
+        (address esc, ) = _createPayment(payer, receiver, address(token), 10 ether, 15 minutes, false);
 
         _depositToken(esc, payer, 10 ether);
 
@@ -234,11 +164,7 @@ contract PaymentUnitTest is Test {
         Payment(payable(esc)).finalize(false);
     }
 
-    function _depositToken(
-        address _escrow,
-        address _payer,
-        uint256 _amount
-    ) internal {
+    function _depositToken(address _escrow, address _payer, uint256 _amount) internal {
         vm.startPrank(_payer);
         token.approve(_escrow, _amount);
         Payment(payable(_escrow)).depositToken(_amount);

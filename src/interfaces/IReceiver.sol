@@ -7,7 +7,7 @@ interface IReceiver {
         uint256 planId;
         uint256[] invoiceIds;
         uint256 activePayments;
-        string description;
+        string name;
     }
 
     struct TokenAmount {
@@ -23,10 +23,7 @@ interface IReceiver {
     error ReceiverNotFound(address _addr);
     error InvalidPlan(uint256 _planId);
 
-    function registerReceiver(
-        address _addr,
-        string calldata _description
-    ) external;
+    function registerReceiver(address _addr, string calldata _description) external;
 
     function getReceiver(address _addr) external view returns (Receiver memory, TokenAmount[] memory);
 
