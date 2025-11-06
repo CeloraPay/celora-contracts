@@ -183,7 +183,7 @@
       {
         "name": "_token",
         "type": "address",
-        "internalType": "address"
+        "internalType": "contract IERC20"
       },
       {
         "name": "_amount",
@@ -282,7 +282,7 @@
       {
         "name": "",
         "type": "address",
-        "internalType": "address"
+        "internalType": "contract IERC20"
       }
     ],
     "stateMutability": "view"
@@ -323,22 +323,35 @@
         "internalType": "uint256"
       },
       {
-        "name": "toGateway",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "toSender",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
         "name": "isFiat",
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Initialized",
+    "inputs": [
+      {
+        "name": "_paymentAddress",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "_token",
+        "type": "address",
+        "indexed": false,
+        "internalType": "contract IERC20"
       }
     ],
     "anonymous": false
@@ -365,6 +378,16 @@
   },
   {
     "type": "error",
+    "name": "NativeTransferFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotAuthorizedPayer",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotGateway",
     "inputs": []
   },
@@ -372,6 +395,17 @@
     "type": "error",
     "name": "NotPayableToken",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PaymentNotFound",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   },
   {
     "type": "error",

@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import { Test } from "forge-std/Test.sol";
 import { Payment } from "../src/Payment.sol";
-import { Gateway } from "../src/Gateway.sol";
+import { Celora } from "../src/Celora.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract TestERC20 is ERC20 {
@@ -16,7 +16,7 @@ contract TestERC20 is ERC20 {
 
 contract PaymentUnitTest is Test {
     TestERC20 public token;
-    Gateway public gateway;
+    Celora public celora;
 
     address public owner = address(0x10);
     address public admin = address(0x10);
@@ -27,12 +27,12 @@ contract PaymentUnitTest is Test {
     function setUp() public {
         token = new TestERC20("T", "T");
         vm.startPrank(owner);
-        gateway = new Gateway();
-        gateway.enableToken(address(token));
+        celora = new Celora();
+        celora.enableToken(address(token));
         vm.stopPrank();
 
         vm.startPrank(admin);
-        gateway.registerReceiver(receiver, "Shop");
+        celora.registerReceiver(receiver, "Shop");
         vm.stopPrank();
 
         token.mint(payer, 100 ether);
@@ -47,7 +47,7 @@ contract PaymentUnitTest is Test {
         bool _isFiat
     ) internal returns (address, uint256) {
         vm.startPrank(admin);
-        (address esc, uint256 id) = gateway.createPayment(_payer, _receiver, _token, _amount, _duration, _isFiat);
+        (address esc, uint256 id) = celora.createPayment(_payer, _receiver, _token, _amount, _duration, _isFiat);
         vm.stopPrank();
         return (esc, id);
     }
@@ -72,10 +72,10 @@ contract PaymentUnitTest is Test {
         require(ok);
 
         vm.prank(admin);
-        bool ok2 = gateway.finalizePayment(id, false);
+        bool ok2 = celora.finalizePayment(id, false);
         assertTrue(ok2);
 
-        assertEq(address(gateway).balance, (1 ether * 2) / 100);
+        assertEq(address(celora).balance, (1 ether * 2) / 100);
     }
 
     function test_depositToken_reverts_if_token_is_native() public {
@@ -120,11 +120,11 @@ contract PaymentUnitTest is Test {
         vm.warp(block.timestamp + 16 minutes);
 
         vm.prank(admin);
-        bool ok = gateway.finalizePayment(id, false);
+        bool ok = celora.finalizePayment(id, false);
         assertFalse(ok);
 
         assertEq(token.balanceOf(payer), 97.5 ether);
-        assertEq(token.balanceOf(address(gateway)), 2.5 ether);
+        assertEq(token.balanceOf(address(celora)), 2.5 ether);
         assertEq(token.balanceOf(receiver), 0);
     }
 
@@ -134,11 +134,11 @@ contract PaymentUnitTest is Test {
         _depositToken(esc, payer, 100 ether);
 
         vm.prank(admin);
-        bool ok = gateway.finalizePayment(id, false);
+        bool ok = celora.finalizePayment(id, false);
         assertTrue(ok);
 
         assertEq(token.balanceOf(receiver), 98 ether);
-        assertEq(token.balanceOf(address(gateway)), 2 ether);
+        assertEq(token.balanceOf(address(celora)), 2 ether);
     }
 
     function test_double_finalize_reverts() public {
@@ -147,15 +147,15 @@ contract PaymentUnitTest is Test {
         _depositToken(esc, payer, 10 ether);
 
         vm.prank(admin);
-        bool ok = gateway.finalizePayment(id, false);
+        bool ok = celora.finalizePayment(id, false);
         assertTrue(ok);
 
         vm.prank(admin);
         vm.expectRevert();
-        gateway.finalizePayment(id, false);
+        celora.finalizePayment(id, false);
     }
 
-    function test_direct_finalize_call_reverts_notGateway() public {
+    function test_direct_finalize_call_reverts_notcelora() public {
         (address esc, ) = _createPayment(payer, receiver, address(token), 10 ether, 15 minutes, false);
 
         _depositToken(esc, payer, 10 ether);
