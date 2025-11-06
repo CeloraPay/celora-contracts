@@ -23,7 +23,7 @@ interface IReceiver {
     error ReceiverNotFound(address _addr);
     error InvalidPlan(uint256 _planId);
 
-    function registerReceiver(address _addr, string calldata _description) external;
+    function registerReceiver(address _addr, string calldata _name) external;
 
     function getReceiver(address _addr) external view returns (Receiver memory, TokenAmount[] memory);
 
