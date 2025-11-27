@@ -6,7 +6,7 @@ interface IPaymentGateway {
         address paymentAddr;
         address payer;
         address receiver;
-        address token; // address(0) for native CELO
+        address token; // address(0) for native
         uint256 amount;
         uint256 createdAt;
         uint256 expiresAt;

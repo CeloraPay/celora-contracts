@@ -428,7 +428,7 @@ contract Celora is ReentrancyGuard, AccessControl, IGateway {
         IERC20(token).safeTransfer(to, amount);
     }
 
-    /// @notice Withdraw native CELO from gateway
+    /// @notice Withdraw native from gateway
     /// @param amount Amount to withdraw
     /// @param to Recipient address
     function withdrawNative(uint256 amount, address payable to) external onlyOwner {

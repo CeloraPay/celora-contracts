@@ -21,7 +21,7 @@ contract Payment is ReentrancyGuard, IPayment {
     /// @notice Actual depositor address
     address public depositor;
 
-    /// @notice ERC20 token contract; zero address means native CELO
+    /// @notice ERC20 token contract; zero address means native
     IERC20 public token;
 
     /// @notice Flag indicating if payment is in fiat
@@ -63,7 +63,7 @@ contract Payment is ReentrancyGuard, IPayment {
     /// @param _gateway Gateway address
     /// @param _payer Expected depositor
     /// @param _receiver Final recipient
-    /// @param _token ERC20 token contract; use zero address for native CELO
+    /// @param _token ERC20 token contract; use zero address for native
     /// @param _amount Expected deposit amount
     /// @param _invoiceId Invoice ID
     /// @param _durationSeconds Duration in seconds until expiration
@@ -111,12 +111,12 @@ contract Payment is ReentrancyGuard, IPayment {
         emit Deposited(msg.sender, _amount);
     }
 
-    /// @notice Deposit native CELO by sending value equal to amount
+    /// @notice Deposit native by sending value equal to amount
     receive() external payable {
         _depositNative();
     }
 
-    /// @notice Deposit native CELO manually
+    /// @notice Deposit native manually
     function depositNative() external payable {
         _depositNative();
     }
@@ -200,7 +200,7 @@ contract Payment is ReentrancyGuard, IPayment {
         }
     }
 
-    /// @notice Deposit native CELO logic
+    /// @notice Deposit native logic
     function _depositNative() internal {
         if (finalized) revert FinalizedAlready();
         if (address(token) != address(0)) revert NotPayableToken();
@@ -220,7 +220,7 @@ contract Payment is ReentrancyGuard, IPayment {
         if (msg.sender != gateway) revert NotGateway();
     }
 
-    /// @notice Returns current balance of token or native CELO in contract
+    /// @notice Returns current balance of token or native in contract
     /// @return Current balance
     function _currentBalance() internal view returns (uint256) {
         if (address(token) == address(0)) {
@@ -230,15 +230,15 @@ contract Payment is ReentrancyGuard, IPayment {
         }
     }   
 
-    /// @notice Transfer funds to an address, either native CELO or ERC20
-    /// @param _token Token to transfer; zero address = native CELO
+    /// @notice Transfer funds to an address, either native or ERC20
+    /// @param _token Token to transfer; zero address = native
     /// @param to Recipient address
     /// @param value Amount to transfer
     function _transferFunds(IERC20 _token, address to, uint256 value) internal {
         if (value == 0) return;
 
         if (address(token) == address(0)) {
-            // native CELO — use call and require success
+            // native — use call and require success
             (bool ok, ) = to.call{ value: value }("");
             
             if(!ok) revert NativeTransferFailed();
